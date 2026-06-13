@@ -14,14 +14,13 @@
 | Web/Update Server | QoS 0, Retained Notice, 트랜잭션 결합 없음 | Notice/File 불일치 및 메시지 유실 가능 |
 | MQTT | Anonymous, TLS/ACL 없음 | 구독을 통한 정보 노출과 임의 Publish |
 | Gateway | Notice와 File의 일관성 검증 없음 | File Payload의 대상/버전을 그대로 신뢰 |
-| Gateway | 알 수 없는 ECU를 Powertrain으로 Fallback | 잘못된 대상이 Powertrain으로 전달 |
 | Gateway | 서명, 해시, 크기, Replay 검증 없음 | 변조, 반복, 크기 불일치 패키지 전달 |
 | CAN | Message 인증 없음 | 같은 CAN Bus에서 ECU Frame 위조 가능 |
 | ECU | 송신자와 대상 ECU 검증 없음 | 포트로 도착한 모든 업데이트 수용 |
 | ECU | Chunk 수, 누락, 중복, 크기 검증 없음 | 손상된 Firmware도 설치 상태로 전환 |
 | ECU | Firmware 서명/해시 검증 없음 | 변조된 파일 설치 |
 | ECU | 버전 비교와 Anti-rollback 없음 | 0.5.0 같은 구버전 설치 |
-| ECU | 부팅 성공 확인 전 Slot 전환 | 불완전 Firmware도 Active 처리 |
+| ECU | 3초 생존만으로 Cluster 부팅 성공 판단 | 기능이 고장 난 Cluster도 Active 처리 |
 
 ## 권장 팀별 조합
 

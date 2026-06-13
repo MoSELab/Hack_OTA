@@ -77,12 +77,8 @@ PAGE = """
   <section class="panel">
     <h2>Firmware 등록</h2>
     <form action="/upload" method="post" enctype="multipart/form-data" class="grid">
-      <label>Firmware<input type="file" name="firmware" required></label>
-      <label>Target ECU
-        <select name="target_ecu">
-          <option>powertrain</option><option>body</option><option>adas</option>
-          <option>unknown-ecu</option>
-        </select>
+      <label>Cluster Update (`cluster.py`)
+        <input type="file" name="firmware" required>
       </label>
       <label>Version<input name="version" value="1.1.0"></label>
       <label>Operator<input name="operator" value="admin"></label>
@@ -103,13 +99,13 @@ PAGE = """
   <section class="panel">
     <h2>등록된 패키지</h2>
     <table>
-      <thead><tr><th>ID</th><th>File</th><th>Target</th><th>Version</th>
+      <thead><tr><th>ID</th><th>File</th><th>Version</th>
         <th>Operator</th><th>Actions</th></tr></thead>
       <tbody>
       {% for item in packages %}
         <tr>
           <td>{{ item.package_id }}</td><td>{{ item.filename }}</td>
-          <td>{{ item.target_ecu }}</td><td>{{ item.version }}</td>
+          <td>{{ item.version }}</td>
           <td>{{ item.operator }}</td>
           <td class="actions">
             <button onclick="post('/api/deploy/{{ item.package_id }}')">Deploy</button>
@@ -119,7 +115,7 @@ PAGE = """
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6">No packages</td></tr>
+        <tr><td colspan="5">No packages</td></tr>
       {% endfor %}
       </tbody>
     </table>
@@ -179,7 +175,7 @@ def on_mqtt_connect(client, userdata, flags, reason_code):
 def on_mqtt_message(client, userdata, message):
     try:
         status = json.loads(message.payload.decode("utf-8"))
-        ecu_name = status.get("ecu", status.get("target_ecu", "unknown"))
+        ecu_name = status.get("ecu", "cluster_ecu")
         with status_lock:
             app.config["ECU_STATUS"][ecu_name] = status
         print("ECU result:", status)
@@ -202,7 +198,6 @@ def publish_package(package_id):
         "type": "notice",
         "update_id": update_id,
         "package_id": package_id,
-        "target_ecu": metadata["target_ecu"],
         "version": metadata["version"],
         "filename": metadata["filename"],
         "size": len(firmware),
@@ -219,7 +214,7 @@ def publish_package(package_id):
     }), qos=0)
     print(
         f"Published {metadata['filename']} version={metadata['version']} "
-        f"target={metadata['target_ecu']} update_id={update_id}"
+        f"update_id={update_id}"
     )
     return update_id
 
@@ -249,7 +244,6 @@ def upload():
         "package_id": package_id,
         "filename": filename,
         "stored_name": stored_name,
-        "target_ecu": request.form.get("target_ecu", "powertrain"),
         "version": request.form.get("version", "0.0.0"),
         "release_notes": request.form.get("release_notes", ""),
         "operator": request.form.get("operator", "anonymous"),

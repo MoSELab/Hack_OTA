@@ -62,9 +62,8 @@ class CentralGateway:
 
         header = json.dumps({
             "update_id": update_id,
-            "target_ecu": payload.get("target_ecu", "powertrain"),
             "version": payload.get("version", "0"),
-            "filename": payload.get("filename", "update.bin"),
+            "filename": "cluster.py",
             "expected_size": payload.get("size", len(firmware)),
         }).encode("utf-8")
         package = struct.pack(">H", len(header)) + header + firmware
@@ -74,9 +73,8 @@ class CentralGateway:
         ]
         self.pending[transfer_id] = {
             "update_id": update_id,
-            "target_ecu": payload.get("target_ecu", "powertrain"),
             "version": payload.get("version", "0"),
-            "filename": payload.get("filename", "update.bin"),
+            "filename": "cluster.py",
             "bytes": len(firmware),
         }
 
@@ -96,7 +94,7 @@ class CentralGateway:
         )
         print(
             f"Forwarded update_id={update_id} "
-            f"target={payload.get('target_ecu')} bytes={len(firmware)}"
+            f"bytes={len(firmware)}"
         )
 
     def listen_for_results(self):
@@ -115,7 +113,7 @@ class CentralGateway:
             metadata = self.pending.pop(transfer_id, {})
             result = {
                 **metadata,
-                "ecu": metadata.get("target_ecu", "unknown"),
+                "ecu": "cluster_ecu",
                 "status": "installed" if status == 1 else "failed",
                 "last_result": "installed" if status == 1 else "failed",
                 "active_slot": "a" if slot_number == 0 else "b",
