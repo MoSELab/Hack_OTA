@@ -9,7 +9,7 @@
 | Web | 확장자, MIME, 크기, 내용 검증 없음 | 임의 파일을 Firmware로 등록 |
 | Web | 고정 Secret 및 Debug Mode | 내부 오류와 Debug 정보 노출 |
 | Web | Broker 비밀번호를 Metadata와 로그에 저장 | Web/API/파일 접근 시 자격증명 노출 |
-| Web/Update Server | 기본 MQTT 계정이 입력 기본값에 포함 | 추측 가능한 자격증명 |
+| Web/Update Server | 외부 MQTT Broker에 인증 없이 연결 | 누구나 Topic 구독 및 Publish 가능 |
 | Web/Update Server | 전자서명과 해시 없음 | 저장된 Firmware 변조 후 정상 배포 |
 | Web/Update Server | QoS 0, Retained Notice, 트랜잭션 결합 없음 | Notice/File 불일치 및 메시지 유실 가능 |
 | MQTT | Anonymous, TLS/ACL 없음 | 구독을 통한 정보 노출과 임의 Publish |

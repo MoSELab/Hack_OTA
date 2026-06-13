@@ -17,9 +17,9 @@
 ```text
 Browser
    |
-Laptop: web_app.py + Mosquitto
+Laptop: web_app.py
    |
-   | MQTT TCP 1883
+   | Anonymous MQTT 210.123.37.150:1883
    v
 Raspberry Pi 1: central_gateway.py
    |
@@ -40,8 +40,8 @@ Raspberry Pi 1 -> MQTT -> Laptop Dashboard
 python -m pip install Flask paho-mqtt
 ```
 
-Laptop에는 Mosquitto Broker도 실행되어야 합니다. 교육용 설정은
-`mosquitto.conf`를 사용할 수 있습니다.
+기본 MQTT Broker는 인증과 TLS를 사용하지 않는
+`210.123.37.150:1883`입니다.
 
 ### Raspberry Pi 1
 
@@ -58,14 +58,15 @@ python3 -m pip install python-can
 ## CAN 준비
 
 Gateway Raspberry Pi와 ECU Raspberry Pi를 CAN Transceiver로 연결합니다.
-두 장비에서 같은 Bitrate로 CAN Interface를 활성화합니다.
+두 코드는 시작할 때 다음 명령과 같은 동작을 자동 수행합니다.
 
 ```bash
 sudo ip link set can0 down
-sudo ip link set can0 type can bitrate 500000
+sudo ip link set can0 type can bitrate 1000000
 sudo ip link set can0 up
 ```
 
+기본 CAN Bitrate는 1 Mbps입니다. `sudo` 비밀번호 입력이 필요할 수 있습니다.
 CAN 배선에는 CAN-H, CAN-L, 공통 GND와 종단저항을 사용합니다.
 
 ```text
@@ -81,8 +82,6 @@ ECU Raspberry Pi에는 IP 연결이나 MQTT 설정이 필요하지 않습니다.
 
 ### 1. Laptop
 
-Mosquitto를 먼저 실행한 후:
-
 ```powershell
 python web_app.py
 ```
@@ -90,15 +89,13 @@ python web_app.py
 입력 예:
 
 ```text
-MQTT Broker IP [127.0.0.1]:
+MQTT Broker IP [210.123.37.150]:
 MQTT Broker Port [1883]:
-MQTT Username [admin]:
-MQTT Password [admin]:
 Web Host [0.0.0.0]:
 Web Port [5000]:
 ```
 
-Laptop 내부 Broker를 사용하므로 Broker IP는 기본값을 사용합니다.
+Broker IP와 Port는 Enter를 눌러 기본값을 사용할 수 있습니다.
 
 ### 2. Raspberry Pi 2 ECU
 
@@ -112,7 +109,7 @@ python3 ecu.py
 ECU Name [powertrain]:
 CAN Interface [socketcan]:
 CAN Channel [can0]:
-CAN Bitrate [500000]:
+CAN Bitrate [1000000]:
 OTA Base CAN ID [0x700]:
 ```
 
@@ -125,13 +122,11 @@ python3 central_gateway.py
 입력 예:
 
 ```text
-MQTT Broker IP (Laptop IP): 192.168.0.10
+MQTT Broker IP [210.123.37.150]:
 MQTT Broker Port [1883]:
-MQTT Username [gateway]:
-MQTT Password [gateway]:
 CAN Interface [socketcan]:
 CAN Channel [can0]:
-CAN Bitrate [500000]:
+CAN Bitrate [1000000]:
 OTA Base CAN ID [0x700]:
 ```
 
