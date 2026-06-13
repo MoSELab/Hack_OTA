@@ -1,5 +1,0 @@
-HACKOTA TRAINING FIRMWARE
-target=powertrain
-version=2.0.0
-feature=eco-mode,diagnostic-export,remote-calibration
-
