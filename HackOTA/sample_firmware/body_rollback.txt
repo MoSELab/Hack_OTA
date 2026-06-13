@@ -1,0 +1,5 @@
+HACKOTA TRAINING FIRMWARE
+target=body
+version=0.5.0
+feature=legacy-door-control
+
