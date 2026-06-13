@@ -21,7 +21,9 @@ app = Flask(__name__)
 app.secret_key = "hackota-secret"
 app.config["MQTT_CLIENT"] = None
 app.config["ECU_STATUS"] = {}
+app.config["LOGS"] = []
 status_lock = Lock()
+log_lock = Lock()
 
 PAGE = """
 <!doctype html>
@@ -43,19 +45,20 @@ PAGE = """
       border:1px solid #30394c; border-radius:14px; }
     .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
     label { display:grid; gap:6px; color:#aeb8ca; }
-    input, select, textarea, button { font:inherit; border-radius:7px; }
-    input, select, textarea { padding:10px; color:white; background:#0d121b;
+    input, textarea, button { font:inherit; border-radius:7px; }
+    input, textarea { padding:10px; color:white; background:#0d121b;
       border:1px solid #354057; }
     textarea { min-height:75px; }
     button { padding:9px 12px; border:0; background:#ef3d62; color:white;
       font-weight:bold; cursor:pointer; }
-    button.secondary { background:#343e52; }
     .wide { grid-column:span 2; }
-    .check { display:flex; align-items:center; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { padding:11px; text-align:left; border-bottom:1px solid #30394c; }
-    .actions { display:flex; gap:6px; }
     pre { white-space:pre-wrap; word-break:break-all; color:#87d7ff; }
+    .log-box { max-height:420px; overflow:auto; background:#090d14;
+      border:1px solid #293247; border-radius:9px; padding:12px; }
+    .log-entry { padding:8px 4px; border-bottom:1px solid #222b3c;
+      font-family:Consolas,monospace; font-size:14px; }
+    .log-time { color:#77849a; }
+    .log-level { color:#ff7892; font-weight:bold; margin:0 8px; }
     @media(max-width:800px) {
       .grid { grid-template-columns:1fr; }
       .wide { grid-column:auto; }
@@ -85,52 +88,42 @@ PAGE = """
       <label class="wide">Release Notes
         <textarea name="release_notes">urgent update</textarea>
       </label>
-      <label class="check"><input type="checkbox" name="deploy_now">
-        업로드 즉시 배포</label>
-      <button type="submit">Upload Package</button>
+      <button type="submit">Upload and Publish</button>
     </form>
   </section>
 
   <section class="panel">
     <h2>최근 ECU 상태</h2>
-    <pre>{{ statuses | tojson(indent=2) }}</pre>
+    <pre id="ecu-status">{{ statuses | tojson(indent=2) }}</pre>
   </section>
 
   <section class="panel">
-    <h2>등록된 패키지</h2>
-    <table>
-      <thead><tr><th>ID</th><th>File</th><th>Version</th>
-        <th>Operator</th><th>Actions</th></tr></thead>
-      <tbody>
-      {% for item in packages %}
-        <tr>
-          <td>{{ item.package_id }}</td><td>{{ item.filename }}</td>
-          <td>{{ item.version }}</td>
-          <td>{{ item.operator }}</td>
-          <td class="actions">
-            <button onclick="post('/api/deploy/{{ item.package_id }}')">Deploy</button>
-            <button onclick="post('/api/replay/{{ item.package_id }}','count=5')">Replay x5</button>
-            <button class="secondary"
-              onclick="post('/api/delete/{{ item.package_id }}')">Delete</button>
-          </td>
-        </tr>
-      {% else %}
-        <tr><td colspan="5">No packages</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    <h2>Update Server Log</h2>
+    <div id="logs" class="log-box"></div>
   </section>
 </main>
 <script>
-async function post(url, body="") {
-  const response = await fetch(url, {
-    method:"POST",
-    headers:{"Content-Type":"application/x-www-form-urlencoded"},
-    body:body
-  });
-  alert(await response.text());
-  location.reload();
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, ch => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
+  })[ch]);
 }
+async function refreshDashboard() {
+  const [logResponse, statusResponse] = await Promise.all([
+    fetch("/api/logs"), fetch("/api/ecu-status")
+  ]);
+  const logs = await logResponse.json();
+  const statuses = await statusResponse.json();
+  document.getElementById("logs").innerHTML = logs.map(item =>
+    `<div class="log-entry"><span class="log-time">${escapeHtml(item.time)}</span>` +
+    `<span class="log-level">${escapeHtml(item.level)}</span>` +
+    `${escapeHtml(item.message)}</div>`
+  ).join("");
+  document.getElementById("ecu-status").textContent =
+    JSON.stringify(statuses, null, 2);
+}
+refreshDashboard();
+setInterval(refreshDashboard, 2000);
 </script>
 </body>
 </html>
@@ -155,21 +148,24 @@ def save_metadata(metadata):
     )
 
 
-def package_records():
-    records = []
-    for path in UPLOAD_DIR.glob("*.json"):
-        metadata = load_metadata(path)
-        if metadata:
-            records.append(metadata)
-    return sorted(records, key=lambda item: item["created_at"], reverse=True)
+def add_log(level, message):
+    entry = {
+        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "level": level,
+        "message": message,
+    }
+    with log_lock:
+        app.config["LOGS"].insert(0, entry)
+        del app.config["LOGS"][200:]
+    print(f"[{level}] {message}")
 
 
 def on_mqtt_connect(client, userdata, flags, reason_code):
     if reason_code == 0:
         client.subscribe(RESULT_TOPIC, qos=0)
-        print("Subscribed:", RESULT_TOPIC)
+        add_log("MQTT", f"Connected and subscribed: {RESULT_TOPIC}")
     else:
-        print("MQTT connection failed:", reason_code)
+        add_log("ERROR", f"MQTT connection failed: {reason_code}")
 
 
 def on_mqtt_message(client, userdata, message):
@@ -178,9 +174,14 @@ def on_mqtt_message(client, userdata, message):
         ecu_name = status.get("ecu", "cluster_ecu")
         with status_lock:
             app.config["ECU_STATUS"][ecu_name] = status
-        print("ECU result:", status)
+        add_log(
+            "ECU",
+            f"result={status.get('last_result')} "
+            f"slot={status.get('active_slot')} "
+            f"version={status.get('version')}",
+        )
     except Exception as exc:
-        print("Invalid ECU result:", exc)
+        add_log("ERROR", f"Invalid ECU result: {exc}")
 
 
 def publish_package(package_id):
@@ -212,9 +213,10 @@ def publish_package(package_id):
         "type": "file",
         "data": base64.b64encode(firmware).decode("ascii"),
     }), qos=0)
-    print(
+    add_log(
+        "PUBLISH",
         f"Published {metadata['filename']} version={metadata['version']} "
-        f"update_id={update_id}"
+        f"update_id={update_id}",
     )
     return update_id
 
@@ -225,7 +227,6 @@ def index():
         statuses = dict(app.config["ECU_STATUS"])
     return render_template_string(
         PAGE,
-        packages=package_records(),
         statuses=statuses,
     )
 
@@ -250,47 +251,23 @@ def upload():
         "created_at": time.time(),
     }
     save_metadata(metadata)
-    print("UPLOAD:", json.dumps(metadata, ensure_ascii=False))
-    if request.form.get("deploy_now") == "on":
+    add_log(
+        "UPLOAD",
+        f"Stored {filename} version={metadata['version']} "
+        f"operator={metadata['operator']}",
+    )
+    try:
         publish_package(package_id)
+    except Exception as exc:
+        add_log("ERROR", f"Publish failed for {filename}: {exc}")
+        return jsonify({"error": str(exc)}), 500
     return redirect(url_for("index"))
 
 
-@app.post("/api/deploy/<package_id>")
-def deploy(package_id):
-    try:
-        update_id = publish_package(package_id)
-        return jsonify({"status": "published", "update_id": update_id})
-    except FileNotFoundError:
-        return jsonify({"error": "package not found"}), 404
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
-
-
-@app.post("/api/replay/<package_id>")
-def replay(package_id):
-    count = max(1, min(int(request.form.get("count", "3")), 20))
-    try:
-        update_ids = [publish_package(package_id) for _ in range(count)]
-        return jsonify({"status": "published", "update_ids": update_ids})
-    except FileNotFoundError:
-        return jsonify({"error": "package not found"}), 404
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
-
-
-@app.post("/api/delete/<package_id>")
-def delete(package_id):
-    metadata = load_metadata(metadata_path(package_id))
-    if metadata:
-        (UPLOAD_DIR / metadata["stored_name"]).unlink(missing_ok=True)
-        metadata_path(package_id).unlink(missing_ok=True)
-    return jsonify({"status": "deleted"})
-
-
-@app.get("/api/packages")
-def packages():
-    return jsonify(package_records())
+@app.get("/api/logs")
+def logs():
+    with log_lock:
+        return jsonify(list(app.config["LOGS"]))
 
 
 @app.get("/api/ecu-status")

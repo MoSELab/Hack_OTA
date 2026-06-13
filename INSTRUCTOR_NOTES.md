@@ -4,11 +4,9 @@
 
 | 영역 | 의도된 취약점 | 기대 결과 |
 | --- | --- | --- |
-| Web | 로그인과 역할 검증 없음 | 누구나 업로드, 배포, 삭제 가능 |
-| Web | CSRF 보호 없음 | 외부 페이지에서 배포 API 호출 가능 |
+| Web | 로그인과 역할 검증 없음 | 누구나 파일 업로드 즉시 배포 가능 |
 | Web | 확장자, MIME, 크기, 내용 검증 없음 | 임의 파일을 Firmware로 등록 |
 | Web | 고정 Secret 및 Debug Mode | 내부 오류와 Debug 정보 노출 |
-| Web | Broker 비밀번호를 Metadata와 로그에 저장 | Web/API/파일 접근 시 자격증명 노출 |
 | Web/Update Server | 외부 MQTT Broker에 인증 없이 연결 | 누구나 Topic 구독 및 Publish 가능 |
 | Web/Update Server | 전자서명과 해시 없음 | 저장된 Firmware 변조 후 정상 배포 |
 | Web/Update Server | QoS 0, Retained Notice, 트랜잭션 결합 없음 | Notice/File 불일치 및 메시지 유실 가능 |
@@ -33,7 +31,7 @@
 ## Solution 구현 우선순위
 
 1. Firmware 서명과 Manifest 결합 검증
-2. Web 인증, 역할 기반 배포 권한, CSRF
+2. Web 인증과 배포 권한 검증
 3. MQTT TLS/mTLS 및 Topic ACL
 4. Gateway의 대상 ECU, Update ID, 크기, 해시, Replay 검증
 5. ECU의 최종 서명, Sequence, 크기, Anti-rollback, 부팅 확인
