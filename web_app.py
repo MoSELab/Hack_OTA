@@ -307,15 +307,15 @@ def ecu_status():
 
 def main():
     print("=== Laptop: HackOTA Web + Update Server ===")
-    broker = input("MQTT Broker IP [127.0.0.1]: ").strip() or "127.0.0.1"
+    broker = (
+        input("MQTT Broker IP [210.123.37.150]: ").strip()
+        or "210.123.37.150"
+    )
     broker_port = int(input("MQTT Broker Port [1883]: ").strip() or "1883")
-    username = input("MQTT Username [admin]: ").strip() or "admin"
-    password = input("MQTT Password [admin]: ").strip() or "admin"
     web_host = input("Web Host [0.0.0.0]: ").strip() or "0.0.0.0"
     web_port = int(input("Web Port [5000]: ").strip() or "5000")
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-    client.username_pw_set(username, password)
     client.on_connect = on_mqtt_connect
     client.on_message = on_mqtt_message
     client.connect(broker, broker_port)
@@ -330,4 +330,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

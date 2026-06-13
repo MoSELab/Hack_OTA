@@ -1,5 +1,6 @@
 import json
 import struct
+import subprocess
 import time
 from pathlib import Path
 
@@ -132,12 +133,30 @@ class ECU:
             self.transfer = None
 
 
+def configure_socketcan(channel, bitrate):
+    commands = [
+        ["sudo", "ip", "link", "set", channel, "down"],
+        [
+            "sudo", "ip", "link", "set", channel,
+            "type", "can", "bitrate", str(bitrate),
+        ],
+        ["sudo", "ip", "link", "set", channel, "up"],
+    ]
+    for command in commands:
+        print("RUN:", " ".join(command))
+        result = subprocess.run(command, check=False)
+        if result.returncode != 0 and "down" not in command:
+            raise RuntimeError(
+                f"CAN interface setup failed: {' '.join(command)}"
+            )
+
+
 def open_can_bus(interface, channel, bitrate):
     if interface == "socketcan":
+        configure_socketcan(channel, bitrate)
         return can.interface.Bus(
             interface="socketcan",
             channel=channel,
-            bitrate=bitrate,
         )
     return can.interface.Bus(interface=interface, channel=channel)
 
@@ -147,7 +166,7 @@ def main():
     ecu_name = input("ECU Name [powertrain]: ").strip() or "powertrain"
     can_interface = input("CAN Interface [socketcan]: ").strip() or "socketcan"
     can_channel = input("CAN Channel [can0]: ").strip() or "can0"
-    can_bitrate = int(input("CAN Bitrate [500000]: ").strip() or "500000")
+    can_bitrate = int(input("CAN Bitrate [1000000]: ").strip() or "1000000")
     base_can_id = int(
         input("OTA Base CAN ID [0x700]: ").strip() or "0x700",
         0,
@@ -172,4 +191,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
